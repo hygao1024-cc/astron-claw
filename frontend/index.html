@@ -113,38 +113,11 @@ html, body {
 }
 
 .login-brand .logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 64px;
   height: 64px;
   border-radius: 16px;
-  background: linear-gradient(135deg, var(--accent), #7c3aed);
   margin-bottom: 16px;
-  position: relative;
-}
-
-.login-brand .logo::before {
-  content: '';
-  width: 28px;
-  height: 28px;
-  background: transparent;
-  border-left: 3px solid #fff;
-  border-bottom: 3px solid #fff;
-  transform: rotate(-45deg) translate(2px, -2px);
-  position: absolute;
-}
-
-.login-brand .logo::after {
-  content: '';
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  background: #fff;
-  border-radius: 50%;
-  top: 14px;
-  right: 16px;
-  box-shadow: -6px -4px 0 0 #fff, 6px 2px 0 0 rgba(255,255,255,0.5);
+  object-fit: cover;
 }
 
 .login-brand h1 {
@@ -282,33 +255,8 @@ html, body {
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: linear-gradient(135deg, var(--accent), #7c3aed);
-  position: relative;
+  object-fit: cover;
   flex-shrink: 0;
-}
-
-.chat-header .brand .logo-sm::before {
-  content: '';
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  border-left: 2px solid #fff;
-  border-bottom: 2px solid #fff;
-  transform: rotate(-45deg) translate(2px, -2px);
-  top: 7px;
-  left: 8px;
-}
-
-.chat-header .brand .logo-sm::after {
-  content: '';
-  position: absolute;
-  width: 4px;
-  height: 4px;
-  background: #fff;
-  border-radius: 50%;
-  top: 8px;
-  right: 8px;
-  box-shadow: -3px -2px 0 0 #fff;
 }
 
 .status-indicator {
@@ -776,7 +724,7 @@ html, body {
 <div id="login-screen">
   <div class="login-card">
     <div class="login-brand">
-      <div class="logo"></div>
+      <img src="/static/astron_logo.png" class="logo" alt="Astron Claw">
       <h1>Astron Claw</h1>
       <p>Connect to your AI assistant</p>
     </div>
@@ -798,7 +746,7 @@ html, body {
   <!-- Header -->
   <div class="chat-header">
     <div class="brand">
-      <div class="logo-sm"></div>
+      <img src="/static/astron_logo.png" class="logo-sm" alt="Logo">
       <span>Astron Claw</span>
     </div>
     <div class="status-indicator">

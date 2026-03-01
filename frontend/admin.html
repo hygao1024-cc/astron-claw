@@ -78,33 +78,8 @@ html, body {
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent), #7c3aed);
-  position: relative;
+  object-fit: cover;
   flex-shrink: 0;
-}
-
-.header .logo-sm::before {
-  content: '';
-  position: absolute;
-  width: 16px;
-  height: 16px;
-  border-left: 2px solid #fff;
-  border-bottom: 2px solid #fff;
-  transform: rotate(-45deg) translate(2px, -2px);
-  top: 8px;
-  left: 9px;
-}
-
-.header .logo-sm::after {
-  content: '';
-  position: absolute;
-  width: 5px;
-  height: 5px;
-  background: #fff;
-  border-radius: 50%;
-  top: 9px;
-  right: 9px;
-  box-shadow: -3px -2px 0 0 #fff;
 }
 
 .header h1 {
@@ -444,7 +419,7 @@ tbody tr:hover {
 <div class="page">
   <!-- Header -->
   <div class="header">
-    <div class="logo-sm"></div>
+    <img src="/static/astron_logo.png" class="logo-sm" alt="Logo">
     <h1>Astron Claw <small>Admin</small></h1>
     <div class="header-actions">
       <a class="icon-btn" href="/" title="Chat">&#8962;</a>
