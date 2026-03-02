@@ -66,7 +66,7 @@ python3 run.py
 在 Bot 所在的机器上一行命令安装（从 GitHub Release 自动下载）：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hygao1024-cc/astron-claw/master/install.sh | bash -s -- \
+curl -fsSL https://raw.githubusercontent.com/hygao1024/astron-claw/master/install.sh | bash -s -- \
   --bot-token <token> --server-url ws://<server-ip>:8765/bridge/bot
 ```
 
@@ -87,7 +87,7 @@ curl -fsSL https://raw.githubusercontent.com/hygao1024-cc/astron-claw/master/ins
 
 ```bash
 # 远程执行
-curl -fsSL https://raw.githubusercontent.com/hygao1024-cc/astron-claw/master/uninstall.sh | bash -s -- -y
+curl -fsSL https://raw.githubusercontent.com/hygao1024/astron-claw/master/uninstall.sh | bash -s -- -y
 
 # 或本地执行
 ./uninstall.sh       # 交互式确认
