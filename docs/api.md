@@ -42,8 +42,9 @@ http://129.211.5.25:8765
 - [3. Admin Token 管理接口](#3-admin-token-管理接口)
   - [3.1 获取 Token 列表](#31-获取-token-列表)
   - [3.2 创建 Token（管理端）](#32-创建-token管理端)
-  - [3.3 删除 Token](#33-删除-token)
-  - [3.4 清理过期 Token](#34-清理过期-token)
+  - [3.3 更新 Token](#33-更新-token)
+  - [3.4 删除 Token](#34-删除-token)
+  - [3.5 清理过期 Token](#35-清理过期-token)
 - [4. WebSocket — Chat 客户端](#4-websocket--chat-客户端)
   - [4.1 连接](#41-连接)
   - [4.2 客户端发送消息](#42-客户端发送消息)
@@ -397,8 +398,9 @@ GET /api/admin/tokens
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `token` | string | Token 值（`sk-` 前缀） |
+| `name` | string | Token 名称（未设置时为空字符串） |
 | `created_at` | number | 创建时间（Unix 时间戳，秒） |
-| `expires_at` | number | 过期时间（Unix 时间戳，秒） |
+| `expires_at` | number | 过期时间（Unix 时间戳，秒；永不过期时为 `9999999999`） |
 | `bot_online` | boolean | Bot 是否在线 |
 | `chat_count` | integer | 当前 Chat 连接数 |
 
@@ -409,6 +411,7 @@ GET /api/admin/tokens
   "tokens": [
     {
       "token": "sk-a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6",
+      "name": "Production Bot",
       "created_at": 1709280000.0,
       "expires_at": 1709366400.0,
       "bot_online": true,
@@ -435,13 +438,35 @@ for t in resp.json()["tokens"]:
 
 ### 3.2 创建 Token（管理端）
 
-生成新的 `sk-` 前缀 Token。
+生成新的 `sk-` 前缀 Token，支持自定义名称和过期时间。
 
 ```
 POST /api/admin/tokens
 ```
 
-**请求参数：** 无
+**请求体（JSON，可选）：**
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `name` | string | 否 | `""` | Token 名称，用于标识用途 |
+| `expires_in` | integer | 否 | `86400` | 过期秒数（`0` 表示永不过期） |
+
+**常用 `expires_in` 值：**
+
+| 值 | 含义 |
+|----|------|
+| `3600` | 1 小时 |
+| `21600` | 6 小时 |
+| `86400` | 1 天（默认） |
+| `604800` | 7 天 |
+| `2592000` | 30 天 |
+| `0` | 永不过期 |
+
+**请求示例：**
+
+```json
+{"name": "Production Bot", "expires_in": 604800}
+```
 
 **响应：**
 
@@ -452,17 +477,89 @@ POST /api/admin/tokens
 **测试代码：**
 
 ```bash
-curl -X POST http://129.211.5.25:8765/api/admin/tokens -b cookies.txt
+curl -X POST http://129.211.5.25:8765/api/admin/tokens \
+  -H "Content-Type: application/json" \
+  -d '{"name": "My Bot", "expires_in": 604800}' \
+  -b cookies.txt
 ```
 
 ```python
-resp = session.post("http://129.211.5.25:8765/api/admin/tokens")
+resp = session.post("http://129.211.5.25:8765/api/admin/tokens", json={
+    "name": "My Bot",
+    "expires_in": 604800  # 7 天
+})
 print(f"New token: {resp.json()['token']}")
 ```
 
 ---
 
-### 3.3 删除 Token
+### 3.3 更新 Token
+
+更新指定 Token 的名称和/或过期时间。
+
+```
+PATCH /api/admin/tokens/{token_value}
+```
+
+**路径参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `token_value` | string | 要更新的 Token 值 |
+
+**请求体（JSON）：**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `name` | string | 否 | 新的 Token 名称（传入则更新） |
+| `expires_in` | integer | 否 | 从当前时间起的新过期秒数，`0` 表示永不过期（传入则更新） |
+
+**请求示例：**
+
+```json
+{"name": "Renamed Bot", "expires_in": 2592000}
+```
+
+**响应：**
+
+| 状态码 | 说明 |
+|--------|------|
+| `200` | 更新成功 |
+| `404` | Token 不存在 |
+
+**成功响应：**
+
+```json
+{"ok": true}
+```
+
+**失败响应：**
+
+```json
+{"error": "Token not found"}
+```
+
+**测试代码：**
+
+```bash
+curl -X PATCH http://129.211.5.25:8765/api/admin/tokens/sk-a1b2c3d4e5f6... \
+  -H "Content-Type: application/json" \
+  -d '{"name": "New Name", "expires_in": 604800}' \
+  -b cookies.txt
+```
+
+```python
+token = "sk-a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6"
+resp = session.patch(f"http://129.211.5.25:8765/api/admin/tokens/{token}", json={
+    "name": "New Name",
+    "expires_in": 604800  # 续期 7 天
+})
+print(resp.json())  # {'ok': True}
+```
+
+---
+
+### 3.4 删除 Token
 
 立即删除指定 Token。
 
@@ -496,7 +593,7 @@ print(resp.json())  # {'ok': True}
 
 ---
 
-### 3.4 清理过期 Token
+### 3.5 清理过期 Token
 
 批量删除所有已过期的 Token，返回删除数量。
 

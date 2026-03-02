@@ -644,6 +644,8 @@ tbody tr:hover {
     <table>
       <thead>
         <tr>
+          <th>#</th>
+          <th>Name</th>
           <th>Token</th>
           <th>Created</th>
           <th>Expires</th>
@@ -653,13 +655,40 @@ tbody tr:hover {
         </tr>
       </thead>
       <tbody id="tokens-body">
-        <tr><td colspan="6" class="empty-state">Loading...</td></tr>
+        <tr><td colspan="8" class="empty-state">Loading...</td></tr>
       </tbody>
     </table>
   </div>
 </div>
 
-<!-- New Token Modal -->
+<!-- Create Token Modal -->
+<div class="modal-overlay" id="create-modal-overlay" onclick="closeCreateModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h2>Create Token</h2>
+    <p>Set a name and expiration for the new token.</p>
+    <div class="form-group">
+      <label for="token-name">Name (optional)</label>
+      <input type="text" id="token-name" placeholder="e.g. Production Bot">
+    </div>
+    <div class="form-group">
+      <label for="token-expiry">Expiration</label>
+      <select id="token-expiry" style="width:100%;padding:12px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font);outline:none;">
+        <option value="3600">1 Hour</option>
+        <option value="21600">6 Hours</option>
+        <option value="86400" selected>1 Day</option>
+        <option value="604800">7 Days</option>
+        <option value="2592000">30 Days</option>
+        <option value="0">Never</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="hideCreateModal()">Cancel</button>
+      <button class="btn btn-primary" id="create-token-btn" onclick="submitCreateToken()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Token Result Modal -->
 <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
   <div class="modal" onclick="event.stopPropagation()">
     <h2>Token Generated</h2>
@@ -668,6 +697,35 @@ tbody tr:hover {
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="hideModal()">Close</button>
       <button class="btn btn-primary" onclick="copyModalToken()">Copy Token</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Token Modal -->
+<div class="modal-overlay" id="edit-modal-overlay" onclick="closeEditModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h2>Edit Token</h2>
+    <p>Update token name or expiration time.</p>
+    <input type="hidden" id="edit-token-value">
+    <div class="form-group">
+      <label for="edit-token-name">Name</label>
+      <input type="text" id="edit-token-name" placeholder="e.g. Production Bot">
+    </div>
+    <div class="form-group">
+      <label for="edit-token-expiry">New Expiration (from now)</label>
+      <select id="edit-token-expiry" style="width:100%;padding:12px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font);outline:none;">
+        <option value="">Keep current</option>
+        <option value="3600">1 Hour</option>
+        <option value="21600">6 Hours</option>
+        <option value="86400">1 Day</option>
+        <option value="604800">7 Days</option>
+        <option value="2592000">30 Days</option>
+        <option value="0">Never</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="hideEditModal()">Cancel</button>
+      <button class="btn btn-primary" id="edit-token-btn" onclick="submitEditToken()">Save</button>
     </div>
   </div>
 </div>
@@ -822,14 +880,87 @@ async function fetchTokens() {
 }
 
 async function generateToken() {
+  document.getElementById('token-name').value = '';
+  document.getElementById('token-expiry').value = '86400';
+  document.getElementById('create-modal-overlay').classList.add('active');
+}
+
+async function submitCreateToken() {
+  const name = document.getElementById('token-name').value.trim();
+  const expiresIn = parseInt(document.getElementById('token-expiry').value, 10);
+  const btn = document.getElementById('create-token-btn');
+  btn.disabled = true;
   try {
-    const res = await apiFetch('/api/admin/tokens', { method: 'POST' });
+    const res = await apiFetch('/api/admin/tokens', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, expires_in: expiresIn }),
+    });
     const data = await res.json();
+    hideCreateModal();
     showModal(data.token);
     fetchTokens();
   } catch (e) {
     if (e.message !== 'Unauthorized') showToast('Failed to generate token');
+  } finally {
+    btn.disabled = false;
   }
+}
+
+function hideCreateModal() {
+  document.getElementById('create-modal-overlay').classList.remove('active');
+}
+
+function closeCreateModal(e) {
+  if (e.target === document.getElementById('create-modal-overlay')) hideCreateModal();
+}
+
+function editToken(token, name) {
+  document.getElementById('edit-token-value').value = token;
+  document.getElementById('edit-token-name').value = name;
+  document.getElementById('edit-token-expiry').value = '';
+  document.getElementById('edit-modal-overlay').classList.add('active');
+}
+
+async function submitEditToken() {
+  const token = document.getElementById('edit-token-value').value;
+  const name = document.getElementById('edit-token-name').value.trim();
+  const expiryVal = document.getElementById('edit-token-expiry').value;
+  const btn = document.getElementById('edit-token-btn');
+
+  const body = { name };
+  if (expiryVal !== '') {
+    body.expires_in = parseInt(expiryVal, 10);
+  }
+
+  btn.disabled = true;
+  try {
+    const res = await apiFetch('/api/admin/tokens/' + encodeURIComponent(token), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      showToast(data.error || 'Update failed');
+      return;
+    }
+    hideEditModal();
+    showToast('Token updated');
+    fetchTokens();
+  } catch (e) {
+    if (e.message !== 'Unauthorized') showToast('Failed to update token');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function hideEditModal() {
+  document.getElementById('edit-modal-overlay').classList.remove('active');
+}
+
+function closeEditModal(e) {
+  if (e.target === document.getElementById('edit-modal-overlay')) hideEditModal();
 }
 
 async function deleteToken(token) {
@@ -866,25 +997,27 @@ function renderTokens(tokens) {
   statChats.textContent = tokens.reduce((s, t) => s + t.chat_count, 0);
 
   if (tokens.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No tokens yet. Click "+ New Token" to create one.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No tokens yet. Click "+ New Token" to create one.</td></tr>';
     return;
   }
 
-  tbody.innerHTML = tokens.map(t => {
+  tbody.innerHTML = tokens.map((t, i) => {
     const masked = t.token.slice(0, 7) + '...' + t.token.slice(-4);
     const created = formatTime(t.created_at);
-    const expires = formatTime(t.expires_at);
+    const expires = t.expires_at >= 9999999999 ? 'Never' : formatTime(t.expires_at);
     const botBadge = t.bot_online
       ? '<span class="badge badge-online"><span class="badge-dot"></span>Online</span>'
       : '<span class="badge badge-offline"><span class="badge-dot"></span>Offline</span>';
 
     return `<tr>
+      <td class="time-cell">${i + 1}</td>
+      <td class="time-cell">${t.name ? esc(t.name) : '<span style="color:var(--text-muted)">—</span>'}</td>
       <td><div class="token-cell"><span class="masked">${esc(masked)}</span><button class="copy-btn" onclick="copyToken('${esc(t.token)}')">Copy</button></div></td>
       <td class="time-cell">${esc(created)}</td>
       <td class="time-cell">${esc(expires)}</td>
       <td>${botBadge}</td>
       <td>${t.chat_count}</td>
-      <td><button class="btn btn-danger" onclick="deleteToken('${esc(t.token)}')">Delete</button></td>
+      <td style="white-space:nowrap"><button class="btn btn-secondary" style="padding:6px 12px;font-size:12px;margin-right:4px" onclick="editToken('${esc(t.token)}','${esc(t.name || '')}')">Edit</button><button class="btn btn-danger" style="padding:6px 12px;font-size:12px" onclick="deleteToken('${esc(t.token)}')">Delete</button></td>
     </tr>`;
   }).join('');
 }

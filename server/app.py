@@ -126,6 +126,7 @@ async def list_tokens(admin_session: str | None = Cookie(default=None)):
         conn = connections.get(t["token"], {})
         result.append({
             "token": t["token"],
+            "name": t.get("name", ""),
             "created_at": t["created_at"],
             "expires_at": t["expires_at"],
             "bot_online": conn.get("bot_online", False),
@@ -135,11 +136,13 @@ async def list_tokens(admin_session: str | None = Cookie(default=None)):
 
 
 @app.post("/api/admin/tokens")
-async def admin_create_token(admin_session: str | None = Cookie(default=None)):
+async def admin_create_token(body: dict = {}, admin_session: str | None = Cookie(default=None)):
     denied = _require_admin(admin_session)
     if denied:
         return denied
-    token = token_manager.generate()
+    name = body.get("name", "")
+    expires_in = body.get("expires_in", 86400)
+    token = token_manager.generate(name=name, expires_in=expires_in)
     return {"token": token}
 
 
@@ -149,6 +152,18 @@ async def admin_delete_token(token_value: str, admin_session: str | None = Cooki
     if denied:
         return denied
     token_manager.remove(token_value)
+    return {"ok": True}
+
+
+@app.patch("/api/admin/tokens/{token_value}")
+async def admin_update_token(token_value: str, body: dict, admin_session: str | None = Cookie(default=None)):
+    denied = _require_admin(admin_session)
+    if denied:
+        return denied
+    name = body.get("name")
+    expires_in = body.get("expires_in")
+    if not token_manager.update(token_value, name=name, expires_in=expires_in):
+        return JSONResponse({"error": "Token not found"}, status_code=404)
     return {"ok": True}
 
 
