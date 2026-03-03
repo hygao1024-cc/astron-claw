@@ -18,19 +18,29 @@ Chat Client ──WebSocket──▶ Bridge Server ◀──WebSocket── Bot 
 - **Admin 管理面板** — 密码认证、Token CRUD、在线状态监控
 - **Web 聊天界面** — 内置 Chat 前端，支持文本和附件发送、会话切换
 - **JSON-RPC 2.0 协议** — Bot 端和服务端之间使用标准 JSON-RPC 通信
+- **高可用存储** — MySQL (SQLAlchemy ORM) 持久化 + Redis 会话缓存，支持 Redis 单机/集群双模式
+- **数据库版本控制** — Alembic 管理 Schema 迁移，支持升级/回滚
 
 ## 项目结构
 
 ```
 astron-claw/
 ├── server/                 # 服务端 (Python/FastAPI)
-│   ├── app.py              # 路由 & WebSocket 端点
-│   ├── bridge.py           # 连接桥接逻辑
-│   ├── token_manager.py    # Token 管理 (SQLite)
-│   ├── admin_auth.py       # Admin 认证
-│   ├── media_manager.py    # 媒体文件管理（上传/下载/过期清理）
+│   ├── app.py              # 路由 & WebSocket 端点 & Lifespan
+│   ├── bridge.py           # 连接桥接逻辑 (session 状态存储于 Redis)
+│   ├── token_manager.py    # Token 管理 (MySQL)
+│   ├── admin_auth.py       # Admin 认证 (MySQL + Redis session)
+│   ├── media_manager.py    # 媒体文件管理（MySQL + 本地文件系统）
+│   ├── models.py           # SQLAlchemy ORM 模型 (Token, AdminConfig, Media)
+│   ├── database.py         # MySQL 异步引擎 & 连接池
+│   ├── cache.py            # Redis 连接管理 (单机/集群)
+│   ├── config.py           # 配置加载 (.env)
 │   ├── run.py              # 启动入口
-│   └── requirements.txt
+│   ├── requirements.txt
+│   ├── alembic.ini         # Alembic 配置
+│   ├── .env.example        # 环境变量示例
+│   └── migrations/         # Alembic 数据库迁移
+│       └── versions/       # 迁移版本文件
 ├── frontend/               # 前端
 │   ├── index.html          # Chat 聊天界面（支持文本+附件）
 │   ├── admin.html          # Admin 管理面板
@@ -52,22 +62,53 @@ astron-claw/
 
 ## 快速开始
 
-### 1. 启动服务端
+### 1. 配置环境
+
+```bash
+cd server
+
+# 复制环境变量模板并填写实际配置
+cp .env.example .env
+# 编辑 .env，填写 MySQL 和 Redis 连接信息
+```
+
+`.env` 配置项：
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `MYSQL_HOST` | MySQL 地址 | `127.0.0.1` |
+| `MYSQL_PORT` | MySQL 端口 | `3306` |
+| `MYSQL_USER` | MySQL 用户名 | `root` |
+| `MYSQL_PASSWORD` | MySQL 密码 | — |
+| `MYSQL_DATABASE` | 数据库名 | `astron_claw` |
+| `REDIS_HOST` | Redis 地址 | `127.0.0.1` |
+| `REDIS_PORT` | Redis 端口 | `6379` |
+| `REDIS_PASSWORD` | Redis 密码 | — |
+| `REDIS_DB` | Redis DB 编号（集群模式忽略） | `0` |
+| `REDIS_CLUSTER` | 是否使用 Redis 集群模式 | `false` |
+
+### 2. 初始化数据库
 
 ```bash
 # 安装依赖
-cd server
 pip install -r requirements.txt
 
-# 启动服务 (默认端口 8765)
+# 执行数据库迁移（自动创建数据库和表）
+alembic upgrade head
+```
+
+### 3. 启动服务端
+
+```bash
 python3 run.py
 ```
 
 服务启动后：
 - 聊天界面：`http://localhost:8765/`
 - 管理面板：`http://localhost:8765/admin`（首次访问需设置密码）
+- 健康检查：`http://localhost:8765/api/health`
 
-### 2. 安装 OpenClaw 插件
+### 4. 安装 OpenClaw 插件
 
 在 Bot 所在的机器上一行命令安装（从 GitHub Release 自动下载）：
 
@@ -89,7 +130,7 @@ curl -fsSL https://raw.githubusercontent.com/hygao1024/astron-claw/master/instal
 | `--target-dir` | 插件安装目录（默认 `~/.openclaw/extensions/astron-claw`） |
 | `--version` | Release 版本标签（默认 `latest`，仅远程模式） |
 
-### 3. 卸载插件
+### 5. 卸载插件
 
 ```bash
 # 远程执行
@@ -100,12 +141,36 @@ curl -fsSL https://raw.githubusercontent.com/hygao1024/astron-claw/master/uninst
 ./uninstall.sh -y    # 静默卸载
 ```
 
+## 数据库迁移
+
+使用 Alembic 管理数据库 Schema 版本：
+
+```bash
+cd server
+
+# 查看当前版本
+alembic current
+
+# 修改 models.py 后自动生成迁移
+alembic revision --autogenerate -m "描述变更内容"
+
+# 升级到最新版本
+alembic upgrade head
+
+# 回退一个版本
+alembic downgrade -1
+
+# 查看迁移历史
+alembic history
+```
+
 ## API 概览
 
 详细文档见 [docs/api.md](docs/api.md)。
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
+| `GET` | `/api/health` | 健康检查（MySQL + Redis 连通性） |
 | `POST` | `/api/token` | 创建 Token |
 | `POST` | `/api/token/validate` | 验证 Token |
 | `GET` | `/api/admin/tokens` | 获取 Token 列表 |
@@ -120,7 +185,8 @@ curl -fsSL https://raw.githubusercontent.com/hygao1024/astron-claw/master/uninst
 
 ## 技术栈
 
-- **服务端**：Python 3 / FastAPI / Uvicorn / SQLite
+- **服务端**：Python 3 / FastAPI / Uvicorn
+- **数据库**：MySQL (SQLAlchemy ORM + Alembic) / Redis (单机 + 集群)
 - **前端**：原生 HTML / CSS / JavaScript
 - **插件**：Node.js / WebSocket (ws) / OpenClaw ChannelPlugin SDK
 - **协议**：WebSocket + JSON-RPC 2.0
