@@ -16,7 +16,7 @@ Chat Client ──WebSocket──► Bridge Server ◄──WebSocket── Bot 
 ### Base URL
 
 ```
-http://129.211.5.25:8765
+http://127.0.0.1:8765
 ```
 
 ### 认证方式
@@ -94,13 +94,13 @@ POST /api/token
 **测试代码：**
 
 ```bash
-curl -X POST http://129.211.5.25:8765/api/token
+curl -X POST http://127.0.0.1:8765/api/token
 ```
 
 ```python
 import requests
 
-resp = requests.post("http://129.211.5.25:8765/api/token")
+resp = requests.post("http://127.0.0.1:8765/api/token")
 print(resp.json())
 # {'token': 'sk-a1b2c3d4e5f6...'}
 ```
@@ -152,7 +152,7 @@ POST /api/token/validate
 **测试代码：**
 
 ```bash
-curl -X POST http://129.211.5.25:8765/api/token/validate \
+curl -X POST http://127.0.0.1:8765/api/token/validate \
   -H "Content-Type: application/json" \
   -d '{"token": "sk-a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6"}'
 ```
@@ -160,7 +160,7 @@ curl -X POST http://129.211.5.25:8765/api/token/validate \
 ```python
 import requests
 
-resp = requests.post("http://129.211.5.25:8765/api/token/validate", json={
+resp = requests.post("http://127.0.0.1:8765/api/token/validate", json={
     "token": "sk-a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6"
 })
 data = resp.json()
@@ -205,13 +205,13 @@ GET /api/admin/auth/status
 **测试代码：**
 
 ```bash
-curl http://129.211.5.25:8765/api/admin/auth/status
+curl http://127.0.0.1:8765/api/admin/auth/status
 ```
 
 ```python
 import requests
 
-resp = requests.get("http://129.211.5.25:8765/api/admin/auth/status")
+resp = requests.get("http://127.0.0.1:8765/api/admin/auth/status")
 print(resp.json())
 # {'need_setup': False, 'authenticated': False}
 ```
@@ -260,7 +260,7 @@ POST /api/admin/auth/setup
 **测试代码：**
 
 ```bash
-curl -X POST http://129.211.5.25:8765/api/admin/auth/setup \
+curl -X POST http://127.0.0.1:8765/api/admin/auth/setup \
   -H "Content-Type: application/json" \
   -d '{"password": "your_password"}' \
   -c cookies.txt
@@ -270,7 +270,7 @@ curl -X POST http://129.211.5.25:8765/api/admin/auth/setup \
 import requests
 
 session = requests.Session()
-resp = session.post("http://129.211.5.25:8765/api/admin/auth/setup", json={
+resp = session.post("http://127.0.0.1:8765/api/admin/auth/setup", json={
     "password": "your_password"
 })
 print(resp.json())
@@ -322,13 +322,13 @@ POST /api/admin/auth/login
 
 ```bash
 # 登录并保存 cookie
-curl -X POST http://129.211.5.25:8765/api/admin/auth/login \
+curl -X POST http://127.0.0.1:8765/api/admin/auth/login \
   -H "Content-Type: application/json" \
   -d '{"password": "your_password"}' \
   -c cookies.txt
 
 # 后续请求携带 cookie
-curl http://129.211.5.25:8765/api/admin/tokens -b cookies.txt
+curl http://127.0.0.1:8765/api/admin/tokens -b cookies.txt
 ```
 
 ```python
@@ -337,13 +337,13 @@ import requests
 session = requests.Session()
 
 # 登录
-resp = session.post("http://129.211.5.25:8765/api/admin/auth/login", json={
+resp = session.post("http://127.0.0.1:8765/api/admin/auth/login", json={
     "password": "your_password"
 })
 print(resp.json())  # {'ok': True}
 
 # 后续请求自动携带 cookie
-resp = session.get("http://129.211.5.25:8765/api/admin/tokens")
+resp = session.get("http://127.0.0.1:8765/api/admin/tokens")
 print(resp.json())  # {'tokens': [...]}
 ```
 
@@ -368,11 +368,11 @@ POST /api/admin/auth/logout
 **测试代码：**
 
 ```bash
-curl -X POST http://129.211.5.25:8765/api/admin/auth/logout -b cookies.txt
+curl -X POST http://127.0.0.1:8765/api/admin/auth/logout -b cookies.txt
 ```
 
 ```python
-resp = session.post("http://129.211.5.25:8765/api/admin/auth/logout")
+resp = session.post("http://127.0.0.1:8765/api/admin/auth/logout")
 print(resp.json())  # {'ok': True}
 ```
 
@@ -429,11 +429,11 @@ GET /api/admin/tokens
 **测试代码：**
 
 ```bash
-curl http://129.211.5.25:8765/api/admin/tokens -b cookies.txt
+curl http://127.0.0.1:8765/api/admin/tokens -b cookies.txt
 ```
 
 ```python
-resp = session.get("http://129.211.5.25:8765/api/admin/tokens")
+resp = session.get("http://127.0.0.1:8765/api/admin/tokens")
 for t in resp.json()["tokens"]:
     status = "online" if t["bot_online"] else "offline"
     print(f"{t['token'][:10]}... | Bot: {status} | Chats: {t['chat_count']}")
@@ -482,14 +482,14 @@ POST /api/admin/tokens
 **测试代码：**
 
 ```bash
-curl -X POST http://129.211.5.25:8765/api/admin/tokens \
+curl -X POST http://127.0.0.1:8765/api/admin/tokens \
   -H "Content-Type: application/json" \
   -d '{"name": "My Bot", "expires_in": 604800}' \
   -b cookies.txt
 ```
 
 ```python
-resp = session.post("http://129.211.5.25:8765/api/admin/tokens", json={
+resp = session.post("http://127.0.0.1:8765/api/admin/tokens", json={
     "name": "My Bot",
     "expires_in": 604800  # 7 天
 })
@@ -547,7 +547,7 @@ PATCH /api/admin/tokens/{token_value}
 **测试代码：**
 
 ```bash
-curl -X PATCH http://129.211.5.25:8765/api/admin/tokens/sk-a1b2c3d4e5f6... \
+curl -X PATCH http://127.0.0.1:8765/api/admin/tokens/sk-a1b2c3d4e5f6... \
   -H "Content-Type: application/json" \
   -d '{"name": "New Name", "expires_in": 604800}' \
   -b cookies.txt
@@ -555,7 +555,7 @@ curl -X PATCH http://129.211.5.25:8765/api/admin/tokens/sk-a1b2c3d4e5f6... \
 
 ```python
 token = "sk-a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6"
-resp = session.patch(f"http://129.211.5.25:8765/api/admin/tokens/{token}", json={
+resp = session.patch(f"http://127.0.0.1:8765/api/admin/tokens/{token}", json={
     "name": "New Name",
     "expires_in": 604800  # 续期 7 天
 })
@@ -587,12 +587,12 @@ DELETE /api/admin/tokens/{token_value}
 **测试代码：**
 
 ```bash
-curl -X DELETE http://129.211.5.25:8765/api/admin/tokens/sk-a1b2c3d4e5f6... -b cookies.txt
+curl -X DELETE http://127.0.0.1:8765/api/admin/tokens/sk-a1b2c3d4e5f6... -b cookies.txt
 ```
 
 ```python
 token = "sk-a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6"
-resp = session.delete(f"http://129.211.5.25:8765/api/admin/tokens/{token}")
+resp = session.delete(f"http://127.0.0.1:8765/api/admin/tokens/{token}")
 print(resp.json())  # {'ok': True}
 ```
 
@@ -624,11 +624,11 @@ POST /api/admin/cleanup
 **测试代码：**
 
 ```bash
-curl -X POST http://129.211.5.25:8765/api/admin/cleanup -b cookies.txt
+curl -X POST http://127.0.0.1:8765/api/admin/cleanup -b cookies.txt
 ```
 
 ```python
-resp = session.post("http://129.211.5.25:8765/api/admin/cleanup")
+resp = session.post("http://127.0.0.1:8765/api/admin/cleanup")
 print(f"Removed {resp.json()['removed_tokens']} tokens, {resp.json()['removed_media']} media files")
 ```
 
@@ -967,7 +967,7 @@ Client                          Server                          Bot
 #### JavaScript
 
 ```javascript
-const ws = new WebSocket('ws://129.211.5.25:8765/bridge/chat?token=sk-xxx');
+const ws = new WebSocket('ws://127.0.0.1:8765/bridge/chat?token=sk-xxx');
 
 let botOnline = false;
 let assistantText = '';
@@ -1037,7 +1037,7 @@ import websockets
 
 
 async def chat(token: str, message: str):
-    uri = f"ws://129.211.5.25:8765/bridge/chat?token={token}"
+    uri = f"ws://127.0.0.1:8765/bridge/chat?token={token}"
 
     async with websockets.connect(uri) as ws:
         # 1. 等待 bot_status
@@ -1109,7 +1109,7 @@ import websockets
 
 
 async def multi_turn_chat(token: str):
-    uri = f"ws://129.211.5.25:8765/bridge/chat?token={token}"
+    uri = f"ws://127.0.0.1:8765/bridge/chat?token={token}"
 
     async with websockets.connect(uri) as ws:
         # 等待 bot_status
@@ -1159,7 +1159,7 @@ asyncio.run(multi_turn_chat("sk-your-token-here"))
 # 安装 websocat: https://github.com/nickel-org/websocat
 # 连接并交互
 echo '{"type":"message","content":"你好"}' | \
-  websocat 'ws://129.211.5.25:8765/bridge/chat?token=sk-xxx'
+  websocat 'ws://127.0.0.1:8765/bridge/chat?token=sk-xxx'
 ```
 
 ---
@@ -1363,7 +1363,7 @@ import websockets
 
 
 async def bot(token: str):
-    uri = f"ws://129.211.5.25:8765/bridge/bot?token={token}"
+    uri = f"ws://127.0.0.1:8765/bridge/bot?token={token}"
 
     async with websockets.connect(uri) as ws:
         print("Bot connected, waiting for messages...")
@@ -1476,7 +1476,7 @@ POST /api/media/upload
 **测试代码：**
 
 ```bash
-curl -X POST http://129.211.5.25:8765/api/media/upload \
+curl -X POST http://127.0.0.1:8765/api/media/upload \
   -H "Authorization: Bearer sk-your-token" \
   -F "file=@photo.jpg"
 ```
@@ -1486,7 +1486,7 @@ import requests
 
 with open("photo.jpg", "rb") as f:
     resp = requests.post(
-        "http://129.211.5.25:8765/api/media/upload",
+        "http://127.0.0.1:8765/api/media/upload",
         headers={"Authorization": "Bearer sk-your-token"},
         files={"file": ("photo.jpg", f, "image/jpeg")},
     )
@@ -1533,17 +1533,17 @@ GET /api/media/download/{media_id}
 ```bash
 # 通过 Authorization 头
 curl -H "Authorization: Bearer sk-your-token" \
-  http://129.211.5.25:8765/api/media/download/a1b2c3d4 -o photo.jpg
+  http://127.0.0.1:8765/api/media/download/a1b2c3d4 -o photo.jpg
 
 # 通过 Query 参数
-curl "http://129.211.5.25:8765/api/media/download/a1b2c3d4?token=sk-your-token" -o photo.jpg
+curl "http://127.0.0.1:8765/api/media/download/a1b2c3d4?token=sk-your-token" -o photo.jpg
 ```
 
 ```python
 import requests
 
 resp = requests.get(
-    "http://129.211.5.25:8765/api/media/download/a1b2c3d4",
+    "http://127.0.0.1:8765/api/media/download/a1b2c3d4",
     headers={"Authorization": "Bearer sk-your-token"},
 )
 with open("downloaded.jpg", "wb") as f:

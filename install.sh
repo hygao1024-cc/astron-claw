@@ -8,7 +8,7 @@ set -euo pipefail
 # Supports both local (plugin/ directory present) and remote (GitHub Release
 # download) modes, so it works equally well from a git clone or via:
 #
-#   curl -fsSL https://raw.githubusercontent.com/hygao1024-cc/astron-claw/master/install.sh | bash -s -- \
+#   curl -fsSL https://raw.githubusercontent.com/hygao1024/astron-claw/master/install.sh | bash -s -- \
 #     --bot-token <token> --server-url ws://server:8765/bridge/bot
 #
 # Wrapped in main() so `curl ... | bash` reads the entire script before
@@ -17,7 +17,7 @@ set -euo pipefail
 
 main() {
 
-GITHUB_REPO="hygao1024-cc/astron-claw"
+GITHUB_REPO="hygao1024/astron-claw"
 TARBALL_NAME="astron-claw-plugin.tar.gz"
 
 OPENCLAW_BIN="${OPENCLAW_BIN:-openclaw}"
