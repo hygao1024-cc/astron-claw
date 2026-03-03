@@ -22,7 +22,11 @@ media_manager = MediaManager()
 # Wire media_manager into bridge so it can resolve download URLs
 bridge.set_media_manager(media_manager)
 
-frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
+_server_dir = Path(__file__).resolve().parent
+# Repo layout: server/ and frontend/ are siblings under project root
+# Installed layout: frontend/ is a subdirectory of the server dir
+_candidate = _server_dir.parent / "frontend"
+frontend_dir = _candidate if _candidate.is_dir() else _server_dir / "frontend"
 
 
 # ── HTTP API ──────────────────────────────────────────────────────────────────
@@ -317,10 +321,50 @@ async def ws_chat(
         "connected": bridge.is_bot_connected(token),
     })
 
+    # Create initial session and send session_info
+    session_id, session_number = bridge.create_session(token)
+    sessions, active_id = bridge.get_sessions(token)
+    await ws.send_json({
+        "type": "session_info",
+        "sessionId": session_id,
+        "sessionNumber": session_number,
+        "sessions": [{"id": s[0], "number": s[1]} for s in sessions],
+        "activeSessionId": active_id,
+    })
+
     try:
         while True:
             data = await ws.receive_json()
             msg_type = data.get("type", "")
+
+            if msg_type == "new_session":
+                new_id, new_num = bridge.create_session(token)
+                sessions, active_id = bridge.get_sessions(token)
+                await ws.send_json({
+                    "type": "new_session_ack",
+                    "sessionId": new_id,
+                    "sessionNumber": new_num,
+                    "sessions": [{"id": s[0], "number": s[1]} for s in sessions],
+                    "activeSessionId": active_id,
+                })
+                continue
+
+            if msg_type == "switch_session":
+                target_id = data.get("sessionId", "")
+                if bridge.switch_session(token, target_id):
+                    sessions, active_id = bridge.get_sessions(token)
+                    await ws.send_json({
+                        "type": "switch_session_ack",
+                        "sessionId": target_id,
+                        "sessions": [{"id": s[0], "number": s[1]} for s in sessions],
+                        "activeSessionId": active_id,
+                    })
+                else:
+                    await ws.send_json({
+                        "type": "error",
+                        "content": f"Session {target_id} not found",
+                    })
+                continue
 
             if msg_type == "message":
                 msg_type_inner = data.get("msgType", "text")

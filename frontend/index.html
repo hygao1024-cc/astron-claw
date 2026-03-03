@@ -971,6 +971,199 @@ html, body {
   box-shadow: var(--shadow);
 }
 
+/* ===== Session Drawer ===== */
+.session-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.session-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.session-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 260px;
+  z-index: 950;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
+  transform: translateX(-100%);
+  transition: transform 0.25s ease;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.session-drawer.open {
+  transform: translateX(0);
+}
+
+.session-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.session-drawer-header h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.session-drawer-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.session-drawer-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all var(--transition);
+}
+
+.session-drawer-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.session-drawer-btn.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.session-new-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 12px 12px 8px;
+  padding: 10px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.session-new-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.session-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 8px 12px;
+}
+
+.session-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition);
+  margin-bottom: 2px;
+}
+
+.session-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.session-item.active {
+  background: var(--accent-dim);
+}
+
+.session-item-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.session-item.active .session-item-icon {
+  background: var(--accent);
+  color: #fff;
+}
+
+.session-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.session-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-item-preview {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.session-item-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+body.drawer-pinned #chat-screen {
+  margin-left: 260px;
+}
+
+body.drawer-pinned .session-drawer {
+  transform: translateX(0);
+  box-shadow: none;
+}
+
+body.drawer-pinned .session-overlay {
+  display: none;
+}
+
 /* ===== Mobile ===== */
 @media (max-width: 640px) {
   .login-card { padding: 28px 20px; }
@@ -982,6 +1175,9 @@ html, body {
   .media-image { max-width: 220px; }
   .media-file-card { max-width: 100%; }
   .media-video { max-width: 100%; }
+  body.drawer-pinned #chat-screen { margin-left: 0; }
+  body.drawer-pinned .session-drawer { transform: translateX(-100%); box-shadow: 4px 0 24px rgba(0,0,0,0.2); }
+  body.drawer-pinned .session-overlay { display: block; }
 }
 </style>
 </head>
@@ -1010,8 +1206,23 @@ html, body {
 
 <!-- ===== Chat Screen ===== -->
 <div id="chat-screen" class="hidden">
+  <!-- Session Drawer -->
+  <div class="session-overlay" id="session-overlay" onclick="hideSessionPanel()"></div>
+  <div class="session-drawer" id="session-drawer">
+    <div class="session-drawer-header">
+      <h3>Sessions</h3>
+      <div class="session-drawer-actions">
+        <button class="session-drawer-btn" id="pin-btn" onclick="togglePinDrawer()" title="Pin drawer">&#128204;</button>
+        <button class="session-drawer-btn" onclick="hideSessionPanel()" title="Close">&#10005;</button>
+      </div>
+    </div>
+    <button class="session-new-btn" onclick="newSession()">+ New Chat</button>
+    <div class="session-list" id="session-list"></div>
+  </div>
+
   <!-- Header -->
   <div class="chat-header">
+    <button class="icon-btn" onclick="toggleSessionPanel()" title="Sessions">&#9776;</button>
     <div class="brand">
       <img src="/static/astron_logo.png" class="logo-sm" alt="Logo">
       <span>Astron Claw</span>
@@ -1081,6 +1292,13 @@ let reconnectAttempts = 0;
 let reconnectTimer = null;
 let botConnected = false;
 let pendingFile = null;  // { file: File, previewUrl: string|null }
+
+// ===== Multi-session State =====
+let currentSessionId = null;
+let sessionList = [];        // [{id, number}, ...]
+let sessionMessages = {};    // sessionId -> innerHTML snapshot
+let sessionMeta = {};        // sessionId -> {preview, timestamp}
+let drawerPinned = false;
 
 const MAX_RECONNECT_ATTEMPTS = 10;
 const RECONNECT_BASE_DELAY = 1000;
@@ -1221,6 +1439,7 @@ function connectWebSocket() {
           document.getElementById('login-screen').classList.add('hidden');
           document.getElementById('chat-screen').classList.remove('hidden');
           updateConnectionStatus(true);
+          restoreDrawerState();
           document.getElementById('msg-input').focus();
         }, 300);
       }
@@ -1315,6 +1534,13 @@ function disconnect() {
   currentAssistantText = '';
   clearPendingFile();
 
+  // Reset session state
+  currentSessionId = null;
+  sessionList = [];
+  sessionMessages = {};
+  sessionMeta = {};
+  unpinDrawer();
+
   document.getElementById('chat-screen').classList.add('hidden');
   document.getElementById('login-screen').classList.remove('hidden');
   document.getElementById('messages-list').innerHTML = '';
@@ -1352,9 +1578,6 @@ function handleServerMessage(msg) {
     case 'tool_call':
       handleToolCall(msg.name || 'unknown', msg.input || '');
       break;
-    case 'tool_result':
-      handleToolResult(msg.content || '');
-      break;
     case 'done':
       handleDone();
       break;
@@ -1366,6 +1589,15 @@ function handleServerMessage(msg) {
       break;
     case 'message':
       handleMediaMessage(msg);
+      break;
+    case 'session_info':
+      handleSessionInfo(msg);
+      break;
+    case 'new_session_ack':
+      handleNewSessionAck(msg);
+      break;
+    case 'switch_session_ack':
+      handleSwitchSessionAck(msg);
       break;
     default:
       console.log('Unknown message type:', msg.type);
@@ -1417,28 +1649,6 @@ function handleToolCall(name, input) {
       <span>${escapeHtml(name)}</span>
     </div>
     <div class="tool-body">${escapeHtml(formattedInput)}</div>
-  `;
-  list.appendChild(block);
-  scrollToBottom();
-}
-
-function handleToolResult(content) {
-  const list = document.getElementById('messages-list');
-  const block = document.createElement('div');
-  block.className = 'tool-block tool-result';
-
-  let formattedContent = content;
-  try {
-    const parsed = JSON.parse(content);
-    formattedContent = JSON.stringify(parsed, null, 2);
-  } catch { /* keep original */ }
-
-  block.innerHTML = `
-    <div class="tool-header">
-      <span class="tool-icon">&#10003;</span>
-      <span>Result</span>
-    </div>
-    <div class="tool-body">${escapeHtml(formattedContent)}</div>
   `;
   list.appendChild(block);
   scrollToBottom();
@@ -1552,6 +1762,11 @@ function addUserMessage(text) {
   msgDiv.appendChild(time);
   list.appendChild(msgDiv);
   scrollToBottom();
+
+  // Update session meta for drawer preview
+  if (currentSessionId) {
+    sessionMeta[currentSessionId] = { preview: text.slice(0, 50), timestamp: Date.now() };
+  }
 }
 
 function addUserMediaMessage(msgType, file, caption, media) {
@@ -1887,6 +2102,163 @@ function copyCode(id) {
     btn.textContent = 'Copied!';
     setTimeout(() => { btn.textContent = orig; }, 1500);
   }).catch(() => {});
+}
+
+// ===== Multi-session Handling =====
+function handleSessionInfo(msg) {
+  currentSessionId = msg.sessionId;
+  sessionList = msg.sessions || [];
+  if (!sessionMessages[currentSessionId]) {
+    sessionMessages[currentSessionId] = '';
+    sessionMeta[currentSessionId] = { preview: '', timestamp: Date.now() };
+  }
+  renderSessionPanel();
+}
+
+function handleNewSessionAck(msg) {
+  saveCurrentSessionMessages();
+  currentSessionId = msg.sessionId;
+  sessionList = msg.sessions || [];
+  sessionMessages[currentSessionId] = '';
+  sessionMeta[currentSessionId] = { preview: '', timestamp: Date.now() };
+  document.getElementById('messages-list').innerHTML = '';
+  finalizeStream();
+  setInputEnabled(true);
+  renderSessionPanel();
+}
+
+function handleSwitchSessionAck(msg) {
+  saveCurrentSessionMessages();
+  currentSessionId = msg.sessionId;
+  sessionList = msg.sessions || [];
+  restoreSessionMessages(currentSessionId);
+  finalizeStream();
+  setInputEnabled(true);
+  renderSessionPanel();
+}
+
+function newSession() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'new_session' }));
+  }
+}
+
+function switchSession(id) {
+  if (id === currentSessionId) return;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'switch_session', sessionId: id }));
+  }
+}
+
+function saveCurrentSessionMessages() {
+  if (!currentSessionId) return;
+  const list = document.getElementById('messages-list');
+  sessionMessages[currentSessionId] = list.innerHTML;
+  // Update meta with last user message preview
+  const userBubbles = list.querySelectorAll('.message.user .message-bubble');
+  if (userBubbles.length > 0) {
+    const lastBubble = userBubbles[userBubbles.length - 1];
+    sessionMeta[currentSessionId] = {
+      preview: lastBubble.textContent.slice(0, 50),
+      timestamp: Date.now(),
+    };
+  }
+}
+
+function restoreSessionMessages(id) {
+  const list = document.getElementById('messages-list');
+  list.innerHTML = sessionMessages[id] || '';
+  scrollToBottom();
+}
+
+// ===== Session Drawer =====
+function toggleSessionPanel() {
+  const drawer = document.getElementById('session-drawer');
+  const overlay = document.getElementById('session-overlay');
+  if (drawerPinned) {
+    unpinDrawer();
+    return;
+  }
+  const isOpen = drawer.classList.contains('open');
+  if (isOpen) {
+    hideSessionPanel();
+  } else {
+    drawer.classList.add('open');
+    overlay.classList.add('visible');
+    renderSessionPanel();
+  }
+}
+
+function hideSessionPanel() {
+  if (drawerPinned) return;
+  document.getElementById('session-drawer').classList.remove('open');
+  document.getElementById('session-overlay').classList.remove('visible');
+}
+
+function togglePinDrawer() {
+  if (drawerPinned) {
+    unpinDrawer();
+  } else {
+    pinDrawer();
+  }
+}
+
+function pinDrawer() {
+  drawerPinned = true;
+  document.body.classList.add('drawer-pinned');
+  document.getElementById('session-drawer').classList.add('open');
+  document.getElementById('session-overlay').classList.remove('visible');
+  document.getElementById('pin-btn').classList.add('active');
+  localStorage.setItem('astron-drawer-pinned', '1');
+}
+
+function unpinDrawer() {
+  drawerPinned = false;
+  document.body.classList.remove('drawer-pinned');
+  document.getElementById('session-drawer').classList.remove('open');
+  document.getElementById('session-overlay').classList.remove('visible');
+  document.getElementById('pin-btn').classList.remove('active');
+  localStorage.removeItem('astron-drawer-pinned');
+}
+
+function restoreDrawerState() {
+  if (localStorage.getItem('astron-drawer-pinned') === '1') {
+    pinDrawer();
+  }
+}
+
+function renderSessionPanel() {
+  const listEl = document.getElementById('session-list');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  // Show sessions in reverse order (newest first)
+  const items = [...sessionList].reverse();
+  for (const s of items) {
+    const isActive = s.id === currentSessionId;
+    const meta = sessionMeta[s.id] || {};
+    const preview = meta.preview || 'No messages yet';
+    const timeStr = meta.timestamp ? relativeTime(meta.timestamp) : '';
+    const div = document.createElement('div');
+    div.className = 'session-item' + (isActive ? ' active' : '');
+    div.onclick = function() { switchSession(s.id); };
+    div.innerHTML = `
+      <div class="session-item-icon">&#128172;</div>
+      <div class="session-item-info">
+        <div class="session-item-title">Session ${s.number}</div>
+        <div class="session-item-preview">${escapeHtml(preview)}</div>
+      </div>
+      <div class="session-item-time">${escapeHtml(timeStr)}</div>
+    `;
+    listEl.appendChild(div);
+  }
+}
+
+function relativeTime(ts) {
+  const diff = Math.floor((Date.now() - ts) / 1000);
+  if (diff < 60) return 'now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h';
+  return Math.floor(diff / 86400) + 'd';
 }
 
 // ===== Init =====

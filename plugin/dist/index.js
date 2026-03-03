@@ -841,7 +841,7 @@ async function handleJsonRpcPrompt(rpcMsg, account, bridgeClient) {
         ctx,
         cfg,
         dispatcherOptions,
-        replyOptions: {},
+        replyOptions: { disableBlockStreaming: false },
       });
 
       if (queuedFinal) {
@@ -1279,7 +1279,7 @@ const astronClawPlugin = {
   capabilities: {
     chatTypes: ["direct"],
     media: true,
-    blockStreaming: false,
+    blockStreaming: true,
     reactions: false,
     threads: false,
     nativeCommands: false,
