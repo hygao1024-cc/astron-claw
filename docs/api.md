@@ -25,6 +25,7 @@ http://129.211.5.25:8765
 |---------|---------|
 | Token 接口 (`/api/token/*`) | 无需认证 |
 | Admin 接口 (`/api/admin/*`) | Cookie `admin_session`（登录后自动携带） |
+| Media 接口 (`/api/media/*`) | `Authorization: Bearer <token>` 或 Query 参数 `token` |
 | WebSocket (`/bridge/*`) | Query 参数 `token` 或请求头 `X-Astron-Bot-Token` |
 
 ---
@@ -57,6 +58,9 @@ http://129.211.5.25:8765
   - [5.3 发送流式更新](#53-发送流式更新)
   - [5.4 发送回复完成](#54-发送回复完成)
   - [5.5 接入示例](#55-接入示例)
+- [6. Media 接口](#6-media-接口)
+  - [6.1 上传媒体文件](#61-上传媒体文件)
+  - [6.2 下载媒体文件](#62-下载媒体文件)
 
 ---
 
@@ -607,12 +611,13 @@ POST /api/admin/cleanup
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `removed` | integer | 已删除的过期 Token 数量 |
+| `removed_tokens` | integer | 已删除的过期 Token 数量 |
+| `removed_media` | integer | 已删除的过期媒体文件数量 |
 
 **响应示例：**
 
 ```json
-{"removed": 3}
+{"removed_tokens": 3, "removed_media": 5}
 ```
 
 **测试代码：**
@@ -623,7 +628,7 @@ curl -X POST http://129.211.5.25:8765/api/admin/cleanup -b cookies.txt
 
 ```python
 resp = session.post("http://129.211.5.25:8765/api/admin/cleanup")
-print(f"Removed {resp.json()['removed']} expired tokens")
+print(f"Removed {resp.json()['removed_tokens']} tokens, {resp.json()['removed_media']} media files")
 ```
 
 ---
@@ -655,17 +660,49 @@ ws://{host}:{port}/bridge/chat?token={token}
 
 客户端通过 WebSocket 发送 JSON 文本帧。
 
-**消息结构：**
+#### 文本消息
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `type` | string | 是 | 固定为 `"message"` |
+| `msgType` | string | 否 | 消息类型，默认 `"text"` |
 | `content` | string | 是 | 用户消息文本，不能为空 |
 
 **示例：**
 
 ```json
 {"type": "message", "content": "你好，请帮我写一段代码"}
+```
+
+#### 媒体消息
+
+发送图片、文件等媒体消息前，需先通过 [Media 上传接口](#61-上传媒体文件) 上传文件获取 `mediaId`。
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `type` | string | 是 | 固定为 `"message"` |
+| `msgType` | string | 是 | 媒体类型：`"image"` / `"file"` / `"audio"` / `"video"` |
+| `content` | string | 否 | 附带的文本描述 |
+| `media` | object | 是 | 媒体信息 |
+| `media.mediaId` | string | 是 | 上传后获得的媒体 ID |
+| `media.fileName` | string | 否 | 文件名 |
+| `media.mimeType` | string | 否 | MIME 类型 |
+| `media.fileSize` | integer | 否 | 文件大小（字节） |
+
+**示例：**
+
+```json
+{
+  "type": "message",
+  "msgType": "image",
+  "content": "",
+  "media": {
+    "mediaId": "abc123",
+    "fileName": "photo.jpg",
+    "mimeType": "image/jpeg",
+    "fileSize": 102400
+  }
+}
 ```
 
 ---
@@ -761,9 +798,41 @@ Bot 的回复内容分多个 chunk 推送，客户端需拼接显示。
 
 | content | 说明 |
 |---------|------|
-| `Empty message` | 发送了空消息 |
+| `Empty message` | 发送了空文本消息 |
+| `Missing media info` | 媒体消息缺少 media 对象 |
 | `No bot connected` | 当前 Token 没有 Bot 在线 |
 | `Failed to send to bot` | 发送到 Bot 失败 |
+
+#### `message` — Bot 发送的媒体消息
+
+Bot 发送的带媒体附件的消息（通过 `agent_media` update type 触发）。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `type` | string | `"message"` |
+| `msgType` | string | 媒体类型：`"image"` / `"file"` / `"audio"` / `"video"` |
+| `content` | string | 附带文本（可为空） |
+| `media` | object | 媒体信息 |
+| `media.mediaId` | string | 媒体文件 ID |
+| `media.fileName` | string | 文件名 |
+| `media.mimeType` | string | MIME 类型 |
+| `media.fileSize` | integer | 文件大小（字节） |
+| `media.downloadUrl` | string | 下载路径 |
+
+```json
+{
+  "type": "message",
+  "msgType": "image",
+  "content": "",
+  "media": {
+    "mediaId": "abc123",
+    "fileName": "output.png",
+    "mimeType": "image/png",
+    "fileSize": 204800,
+    "downloadUrl": "/api/media/download/abc123"
+  }
+}
+```
 
 ---
 
@@ -1018,9 +1087,16 @@ Token 支持两种传递方式（二选一）：
 | `id` | string | 请求唯一标识（`req_` 前缀），回复时需原样返回 |
 | `method` | string | 固定 `"session/prompt"` |
 | `params.sessionId` | string | 会话 ID，同一 Token 多次对话共享 |
-| `params.prompt.content` | array | 消息内容，`[{"type": "text", "text": "..."}]` |
+| `params.prompt.content` | array | 消息内容项列表 |
 
-**示例：**
+**Content item 类型：**
+
+| type | 字段 | 说明 |
+|------|------|------|
+| `text` | `text` | 文本内容 |
+| `media` | `msgType`, `media` | 媒体内容（图片/文件等） |
+
+**文本消息示例：**
 
 ```json
 {
@@ -1032,6 +1108,35 @@ Token 支持两种传递方式（二选一）：
     "prompt": {
       "content": [
         {"type": "text", "text": "你好，请帮我写一段代码"}
+      ]
+    }
+  }
+}
+```
+
+**媒体消息示例：**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "req_b2c3d4e5f6a7",
+  "method": "session/prompt",
+  "params": {
+    "sessionId": "550e8400-e29b-41d4-a716-446655440000",
+    "prompt": {
+      "content": [
+        {"type": "text", "text": "[image]"},
+        {
+          "type": "media",
+          "msgType": "image",
+          "media": {
+            "mediaId": "abc123",
+            "fileName": "photo.jpg",
+            "mimeType": "image/jpeg",
+            "fileSize": 102400,
+            "downloadUrl": "/api/media/download/abc123"
+          }
+        }
       ]
     }
   }
@@ -1066,6 +1171,7 @@ Bot 通过 JSON-RPC Notification（无 `id` 字段）发送流式更新：
 | `agent_thought_chunk` | Bot 思考过程片段 | `thinking` |
 | `tool_call` | 工具调用 | `tool_call` |
 | `tool_call_update` | 工具调用结果 | `tool_result` |
+| `agent_media` | Bot 发送媒体文件 | `message`（含 media 对象） |
 
 **回复文本片段示例：**
 
@@ -1198,6 +1304,140 @@ asyncio.run(bot("sk-your-token-here"))
 
 ---
 
+## 6. Media 接口
+
+媒体文件上传和下载接口。所有媒体接口需通过 `Authorization: Bearer <token>` 或 Query 参数 `token` 进行认证。
+
+### 6.1 上传媒体文件
+
+上传文件并获取 `mediaId`，用于在 WebSocket 消息中引用。
+
+```
+POST /api/media/upload
+```
+
+**请求头：**
+
+| 头部 | 值 | 说明 |
+|------|------|------|
+| `Authorization` | `Bearer sk-xxx` | Token 认证 |
+| `Content-Type` | `multipart/form-data` | 文件上传 |
+
+**请求体（multipart/form-data）：**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `file` | file | 是 | 要上传的文件（最大 50MB） |
+
+**响应：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `mediaId` | string | 媒体文件唯一标识 |
+| `fileName` | string | 文件名 |
+| `mimeType` | string | MIME 类型 |
+| `fileSize` | integer | 文件大小（字节） |
+| `downloadUrl` | string | 下载路径 |
+
+**响应示例：**
+
+```json
+{
+  "mediaId": "a1b2c3d4",
+  "fileName": "photo.jpg",
+  "mimeType": "image/jpeg",
+  "fileSize": 102400,
+  "downloadUrl": "/api/media/download/a1b2c3d4"
+}
+```
+
+**错误响应：**
+
+| 状态码 | 说明 |
+|--------|------|
+| `401` | Token 无效或缺失 |
+| `400` | 无效文件或不支持的类型 |
+| `413` | 文件超过大小限制 |
+
+**测试代码：**
+
+```bash
+curl -X POST http://129.211.5.25:8765/api/media/upload \
+  -H "Authorization: Bearer sk-your-token" \
+  -F "file=@photo.jpg"
+```
+
+```python
+import requests
+
+with open("photo.jpg", "rb") as f:
+    resp = requests.post(
+        "http://129.211.5.25:8765/api/media/upload",
+        headers={"Authorization": "Bearer sk-your-token"},
+        files={"file": ("photo.jpg", f, "image/jpeg")},
+    )
+print(resp.json())
+# {'mediaId': 'a1b2c3d4', 'fileName': 'photo.jpg', ...}
+```
+
+---
+
+### 6.2 下载媒体文件
+
+通过 `mediaId` 下载已上传的媒体文件。
+
+```
+GET /api/media/download/{media_id}
+```
+
+**认证方式（二选一）：**
+
+| 方式 | 示例 |
+|------|------|
+| Authorization 头 | `Authorization: Bearer sk-xxx` |
+| Query 参数 | `?token=sk-xxx` |
+
+**路径参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `media_id` | string | 媒体文件 ID |
+
+**响应：**
+
+文件二进制流，`Content-Type` 为文件的 MIME 类型。
+
+**错误响应：**
+
+| 状态码 | 说明 |
+|--------|------|
+| `401` | Token 无效或缺失 |
+| `404` | 媒体文件不存在或已过期 |
+
+**测试代码：**
+
+```bash
+# 通过 Authorization 头
+curl -H "Authorization: Bearer sk-your-token" \
+  http://129.211.5.25:8765/api/media/download/a1b2c3d4 -o photo.jpg
+
+# 通过 Query 参数
+curl "http://129.211.5.25:8765/api/media/download/a1b2c3d4?token=sk-your-token" -o photo.jpg
+```
+
+```python
+import requests
+
+resp = requests.get(
+    "http://129.211.5.25:8765/api/media/download/a1b2c3d4",
+    headers={"Authorization": "Bearer sk-your-token"},
+)
+with open("downloaded.jpg", "wb") as f:
+    f.write(resp.content)
+```
+
+---
+
 ## 错误码汇总
 
 ### HTTP 状态码
@@ -1207,7 +1447,8 @@ asyncio.run(bot("sk-your-token-here"))
 | `200` | 请求成功 |
 | `400` | 请求参数错误 |
 | `401` | 未认证或密码错误 |
-| `404` | 路径不存在 |
+| `404` | 路径不存在或资源未找到 |
+| `413` | 文件超过大小限制 |
 
 ### WebSocket 关闭码
 
