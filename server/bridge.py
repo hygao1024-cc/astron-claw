@@ -237,11 +237,12 @@ def _translate_bot_event(method: str, params: dict) -> Optional[dict]:
         if update_type == "agent_message_final":
             return {"type": "done", "content": content.get("text", "")}
         if update_type == "tool_result":
+            logger.info("TOOL_RESULT update: %s", json.dumps(update, ensure_ascii=False)[:500])
             return {"type": "tool_result", "content": content.get("text", "")}
         if update_type == "agent_thought_chunk":
             return {"type": "thinking", "content": content.get("text", "")}
         if update_type == "tool_call":
-            # Plugin sends: toolCallId, title, status, content[{type,content:{type,text}}]
+            logger.info("TOOL_CALL update: %s", json.dumps(update, ensure_ascii=False)[:500])
             title = update.get("title", "tool")
             tool_content = update.get("content", [])
             input_text = ""

@@ -857,6 +857,8 @@ async function handleJsonRpcPrompt(rpcMsg, account, bridgeClient) {
       const kind = info?.kind;
       const text = payload?.text ?? "";
 
+      logger.info(`deliver called: kind=${kind}, info=${JSON.stringify(info)}, payload_keys=${Object.keys(payload || {})}, text_len=${text.length}, text_preview=${text.slice(0, 200)}`);
+
       try {
         if (kind === "block") {
           // Ignore — onPartialReply already sent deltas in real-time
@@ -905,6 +907,22 @@ async function handleJsonRpcPrompt(rpcMsg, account, bridgeClient) {
         dispatcherOptions,
         replyOptions: {
           disableBlockStreaming: false,
+          onToolStart: async ({ name, phase }) => {
+            if (phase !== "start") return;
+            bridgeClient.send({
+              jsonrpc: "2.0",
+              method: "session/update",
+              params: {
+                sessionId,
+                update: {
+                  sessionUpdate: "tool_call",
+                  title: name || "tool",
+                  status: "running",
+                  content: [],
+                },
+              },
+            });
+          },
           onPartialReply: async (payload) => {
             const fullText = payload?.text ?? "";
             if (!fullText) return;
