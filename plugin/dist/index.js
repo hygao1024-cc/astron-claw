@@ -3,6 +3,7 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import WebSocket from "ws";
+import { loadWebMedia } from "openclaw/plugin-sdk";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -807,23 +808,82 @@ async function handleJsonRpcPrompt(rpcMsg, account, bridgeClient) {
     MediaUrl: mediaUrl ?? undefined,
   };
 
-  // Build reply dispatcher (delivers replies back through bridge as JSON-RPC)
-  const dispatcherOptions = {
-    deliver: async (payload) => {
-      const text = payload?.text ?? "";
-      if (!text) return;
+  // Token-level streaming state (following adp-openclaw pattern)
+  let lastPartialText = "";
+  let chunkCount = 0;
+  let finalSent = false;
 
-      // Send as JSON-RPC notification: session/update with agent_message_chunk
+  // Helper: send a chunk to the bridge
+  const sendChunk = (text) => {
+    if (!text) return;
+    bridgeClient.send({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId,
+        update: {
+          sessionUpdate: "agent_message_chunk",
+          content: { type: "text", text },
+        },
+      },
+    });
+    chunkCount++;
+  };
+
+  // Helper: send final completion to the bridge
+  const sendFinal = (text) => {
+    if (finalSent) return;
+    finalSent = true;
+    if (text) {
       bridgeClient.send({
         jsonrpc: "2.0",
         method: "session/update",
         params: {
+          sessionId,
           update: {
-            sessionUpdate: "agent_message_chunk",
+            sessionUpdate: "agent_message_final",
             content: { type: "text", text },
           },
         },
       });
+    }
+  };
+
+  // Build dispatcher options (following adp-openclaw pattern):
+  // - onPartialReply handles real-time token-level streaming
+  // - deliver ignores "block" (already sent via onPartialReply) and only handles "final"
+  const dispatcherOptions = {
+    deliver: async (payload, info) => {
+      const kind = info?.kind;
+      const text = payload?.text ?? "";
+
+      try {
+        if (kind === "block") {
+          // Ignore — onPartialReply already sent deltas in real-time
+          return;
+        }
+        if (kind === "tool") {
+          // Tool result
+          bridgeClient.send({
+            jsonrpc: "2.0",
+            method: "session/update",
+            params: {
+              sessionId,
+              update: {
+                sessionUpdate: "tool_result",
+                content: { type: "text", text },
+              },
+            },
+          });
+          return;
+        }
+        // "final" or undefined — send completion
+        if (kind === "final" || kind === undefined) {
+          sendFinal(text || lastPartialText);
+        }
+      } catch (sendErr) {
+        logger.error(`deliver send error: ${String(sendErr)}`);
+      }
 
       recordChannelRuntimeState(account.accountId, { lastOutboundAt: Date.now() });
     },
@@ -832,7 +892,9 @@ async function handleJsonRpcPrompt(rpcMsg, account, bridgeClient) {
     },
   };
 
-  // Dispatch through the OpenClaw SDK (same as DingTalk)
+  // Dispatch through the OpenClaw SDK using onPartialReply for token-level streaming.
+  // onPartialReply receives cumulative text on each token; we compute the delta
+  // and send only the new portion as a chunk (same approach as adp-openclaw).
   try {
     const cfg = rt.config?.loadConfig?.() ?? {};
 
@@ -841,11 +903,32 @@ async function handleJsonRpcPrompt(rpcMsg, account, bridgeClient) {
         ctx,
         cfg,
         dispatcherOptions,
-        replyOptions: { disableBlockStreaming: false },
+        replyOptions: {
+          disableBlockStreaming: false,
+          onPartialReply: async (payload) => {
+            const fullText = payload?.text ?? "";
+            if (!fullText) return;
+
+            // Calculate delta (new text since last send)
+            let delta = fullText;
+            if (fullText.startsWith(lastPartialText)) {
+              delta = fullText.slice(lastPartialText.length);
+            }
+
+            if (!delta) return;
+            lastPartialText = fullText;
+
+            sendChunk(delta);
+          },
+        },
       });
 
+      // Ensure final is sent even if SDK didn't call deliver with "final"
+      if (!finalSent && chunkCount > 0) {
+        sendFinal(lastPartialText);
+      }
+
       if (queuedFinal) {
-        // Send completion signal back through bridge
         bridgeClient.send({
           jsonrpc: "2.0",
           id: requestId,
@@ -1000,12 +1083,12 @@ async function sendTextMessage(to, text, { account, bridgeClient }) {
   const target = normalizeTarget(to);
   if (!target) throw new Error("Invalid target address");
 
-  // Send as JSON-RPC notification (same format as reply dispatcher)
-  // so the bridge server can forward it to chat clients
+  // Send as JSON-RPC notification with sessionId for routing
   bridgeClient.send({
     jsonrpc: "2.0",
     method: "session/update",
     params: {
+      sessionId: target,
       update: {
         sessionUpdate: "agent_message_chunk",
         content: { type: "text", text },
@@ -1027,22 +1110,11 @@ async function sendMediaMessage(to, mediaUrl, options, { account, bridgeClient }
   const target = normalizeTarget(to);
   if (!target) throw new Error("Invalid target address");
 
-  // Load the media (could be a local path, URL, or file://)
-  let buffer, contentType, fileName;
-  const rt = getRuntime();
-
-  if (rt?.media?.loadWebMedia) {
-    const loaded = await rt.media.loadWebMedia(mediaUrl);
-    buffer = loaded.buffer;
-    contentType = loaded.contentType ?? options?.mimeType ?? "application/octet-stream";
-    fileName = loaded.fileName ?? options?.fileName ?? "file";
-  } else {
-    // Try fetching as URL
-    const res = await fetch(mediaUrl);
-    buffer = Buffer.from(await res.arrayBuffer());
-    contentType = res.headers.get("content-type") ?? options?.mimeType ?? "application/octet-stream";
-    fileName = options?.fileName ?? "file";
-  }
+  // Load the media using OpenClaw SDK (supports local paths, URLs, file://, ~ paths)
+  const loaded = await loadWebMedia(mediaUrl);
+  const buffer = loaded.buffer;
+  const contentType = loaded.contentType ?? options?.mimeType ?? "application/octet-stream";
+  const fileName = loaded.fileName ?? options?.fileName ?? "file";
 
   const mediaType = inferMediaType(contentType);
 
@@ -1294,7 +1366,8 @@ const astronClawPlugin = {
       const pluginCfg = cfg?.channels?.[PLUGIN_ID]
         ?? cfg?.plugins?.entries?.[PLUGIN_ID]?.config
         ?? {};
-      if (pluginCfg.bridge?.token) {
+      // Return account if bridge URL is configured (token checked by isConfigured)
+      if (pluginCfg.bridge?.url || pluginCfg.bridge?.token) {
         return [DEFAULT_ACCOUNT_ID];
       }
       return [];
@@ -1434,7 +1507,7 @@ const astronClawPlugin = {
       return {
         policy: "allowlist",
         allowFrom: account.allowFrom ?? ["*"],
-        policyPath: `plugins.entries.${PLUGIN_ID}.config.allowFrom`,
+        policyPath: `channels.${PLUGIN_ID}.allowFrom`,
         normalizeEntry: (raw) => {
           if (typeof raw !== "string") return String(raw);
           return raw.replace(`${PLUGIN_ID}:user:`, "").replace(`${PLUGIN_ID}:`, "");
@@ -1471,25 +1544,25 @@ const astronClawPlugin = {
         lastStopAt: Date.now(),
       });
 
-      // Clear credentials from config
+      // Clear credentials from config (write to channels.*, not plugins.entries.*)
       const rt = getRuntime();
       if (rt?.config?.writeConfigFile) {
         const nextCfg = { ...cfg };
-        const pluginEntry = cfg?.plugins?.entries?.[PLUGIN_ID] ?? {};
-        const pluginConfig = pluginEntry.config ?? {};
-        const nextConfig = { ...pluginConfig };
-        delete nextConfig.bridge;
+        const channelCfg = cfg?.channels?.[PLUGIN_ID] ?? {};
+        const nextChannelCfg = { ...channelCfg };
+        delete nextChannelCfg.bridge;
 
-        nextCfg.plugins = {
-          ...nextCfg.plugins,
-          entries: {
-            ...nextCfg.plugins?.entries,
-            [PLUGIN_ID]: {
-              ...pluginEntry,
-              config: nextConfig,
-            },
-          },
-        };
+        if (Object.keys(nextChannelCfg).length > 0) {
+          nextCfg.channels = { ...nextCfg.channels, [PLUGIN_ID]: nextChannelCfg };
+        } else {
+          const nextChannels = { ...nextCfg.channels };
+          delete nextChannels[PLUGIN_ID];
+          if (Object.keys(nextChannels).length > 0) {
+            nextCfg.channels = nextChannels;
+          } else {
+            delete nextCfg.channels;
+          }
+        }
         await rt.config.writeConfigFile(nextCfg);
       }
 

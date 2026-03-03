@@ -234,6 +234,10 @@ def _translate_bot_event(method: str, params: dict) -> Optional[dict]:
 
         if update_type == "agent_message_chunk":
             return {"type": "chunk", "content": content.get("text", "")}
+        if update_type == "agent_message_final":
+            return {"type": "done", "content": content.get("text", "")}
+        if update_type == "tool_result":
+            return {"type": "tool_result", "content": content.get("text", "")}
         if update_type == "agent_thought_chunk":
             return {"type": "thinking", "content": content.get("text", "")}
         if update_type == "tool_call":

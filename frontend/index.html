@@ -1578,6 +1578,9 @@ function handleServerMessage(msg) {
     case 'tool_call':
       handleToolCall(msg.name || 'unknown', msg.input || '');
       break;
+    case 'tool_result':
+      handleToolResult(msg.content || '');
+      break;
     case 'done':
       handleDone();
       break;
@@ -1649,6 +1652,30 @@ function handleToolCall(name, input) {
       <span>${escapeHtml(name)}</span>
     </div>
     <div class="tool-body">${escapeHtml(formattedInput)}</div>
+  `;
+  list.appendChild(block);
+  scrollToBottom();
+}
+
+function handleToolResult(content) {
+  // Tool results may appear between chunks; don't finalize stream yet.
+  // Display as a collapsible block similar to tool_call.
+  const list = document.getElementById('messages-list');
+  const block = document.createElement('div');
+  block.className = 'tool-block';
+
+  let formatted = content;
+  try {
+    const parsed = JSON.parse(content);
+    formatted = JSON.stringify(parsed, null, 2);
+  } catch { /* keep original */ }
+
+  block.innerHTML = `
+    <div class="tool-header">
+      <span class="tool-icon">&#9881;</span>
+      <span>Tool Result</span>
+    </div>
+    <div class="tool-body">${escapeHtml(formatted)}</div>
   `;
   list.appendChild(block);
   scrollToBottom();
