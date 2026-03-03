@@ -11,11 +11,12 @@ Chat Client ──WebSocket──▶ Bridge Server ◀──WebSocket── Bot 
 
 - **OpenClaw Channel Plugin** — 原生 ChannelPlugin 接口，支持 message tool 主动发送消息
 - **WebSocket 双向桥接** — Bot 无需公网 IP，主动出站连接即可
+- **多会话管理** — 支持创建/切换多个独立对话，前端 Session Drawer 可 pin 固定
 - **媒体消息支持** — 图片、音频、视频、文件的上传/下载和双向传输
 - **Token 管理** — 支持自定义名称、多种过期时间（1h/6h/1d/7d/30d/永不过期）
-- **流式传输** — 支持思考过程、文本片段、工具调用等多种消息类型
+- **流式传输** — Block streaming 模式，支持思考过程、文本片段、工具调用等多种消息类型
 - **Admin 管理面板** — 密码认证、Token CRUD、在线状态监控
-- **Web 聊天界面** — 内置 Chat 前端，支持文本和附件发送
+- **Web 聊天界面** — 内置 Chat 前端，支持文本和附件发送、会话切换
 - **JSON-RPC 2.0 协议** — Bot 端和服务端之间使用标准 JSON-RPC 通信
 
 ## 项目结构
