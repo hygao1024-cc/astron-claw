@@ -38,7 +38,8 @@ astron-claw/
 │   ├── cache.py            # Redis 连接管理 (单机/集群)
 │   ├── config.py           # 配置加载 (.env)
 │   ├── run.py              # 启动入口
-│   ├── requirements.txt
+│   ├── pyproject.toml      # 项目依赖 (uv)
+│   ├── uv.lock             # 依赖锁文件
 │   ├── alembic.ini         # Alembic 配置
 │   ├── .env.example        # 环境变量示例
 │   └── migrations/         # Alembic 数据库迁移
@@ -64,7 +65,13 @@ astron-claw/
 
 ## 快速开始
 
-### 1. 配置环境
+### 1. 安装 uv
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+### 2. 配置环境
 
 ```bash
 cd server
@@ -94,20 +101,20 @@ cp .env.example .env
 | `SERVER_LOG_LEVEL` | 日志级别 | `info` |
 | `SERVER_ACCESS_LOG` | 是否启用访问日志 | `true` |
 
-### 2. 初始化数据库
+### 3. 安装依赖 & 初始化数据库
 
 ```bash
-# 安装依赖
-pip install -r requirements.txt
+# 安装依赖（自动创建 .venv）
+uv sync
 
 # 执行数据库迁移（自动创建数据库和表）
-alembic upgrade head
+uv run alembic upgrade head
 ```
 
-### 3. 启动服务端
+### 4. 启动服务端
 
 ```bash
-python3 run.py
+uv run python3 run.py
 ```
 
 服务启动后：
@@ -115,7 +122,7 @@ python3 run.py
 - 管理面板：`http://localhost:8765/admin`（首次访问需设置密码）
 - 健康检查：`http://localhost:8765/api/health`
 
-### 4. 安装 OpenClaw 插件
+### 5. 安装 OpenClaw 插件
 
 在 Bot 所在的机器上一行命令安装（从 GitHub Release 自动下载）：
 
@@ -137,7 +144,7 @@ curl -fsSL https://raw.githubusercontent.com/hygao1024/astron-claw/master/instal
 | `--target-dir` | 插件安装目录（默认 `~/.openclaw/extensions/astron-claw`） |
 | `--version` | Release 版本标签（默认 `latest`，仅远程模式） |
 
-### 5. 卸载插件
+### 6. 卸载插件
 
 ```bash
 # 远程执行
@@ -156,19 +163,19 @@ curl -fsSL https://raw.githubusercontent.com/hygao1024/astron-claw/master/uninst
 cd server
 
 # 查看当前版本
-alembic current
+uv run alembic current
 
 # 修改 models.py 后自动生成迁移
-alembic revision --autogenerate -m "描述变更内容"
+uv run alembic revision --autogenerate -m "描述变更内容"
 
 # 升级到最新版本
-alembic upgrade head
+uv run alembic upgrade head
 
 # 回退一个版本
-alembic downgrade -1
+uv run alembic downgrade -1
 
 # 查看迁移历史
-alembic history
+uv run alembic history
 ```
 
 ## API 概览
