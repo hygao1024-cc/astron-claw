@@ -28,21 +28,46 @@ Chat Client ──WebSocket──▶ Bridge Server ◀──WebSocket── Bot 
 ```
 astron-claw/
 ├── server/                 # 服务端 (Python/FastAPI)
-│   ├── app.py              # 路由 & WebSocket 端点 & Lifespan
-│   ├── bridge.py           # 连接桥接逻辑 (session 状态存储于 Redis)
-│   ├── token_manager.py    # Token 管理 (MySQL)
-│   ├── admin_auth.py       # Admin 认证 (MySQL + Redis session)
-│   ├── media_manager.py    # 媒体文件管理（MySQL + 本地文件系统）
-│   ├── models.py           # SQLAlchemy ORM 模型 (Token, AdminConfig, Media)
-│   ├── database.py         # MySQL 异步引擎 & 连接池
-│   ├── cache.py            # Redis 连接管理 (单机/集群)
-│   ├── config.py           # 配置加载 (.env)
-│   ├── run.py              # 启动入口
+│   ├── app.py              # FastAPI 应用入口 & Lifespan
+│   ├── run.py              # 启动入口 (Uvicorn)
 │   ├── requirements.txt
+│   ├── pytest.ini          # 单元测试配置
 │   ├── alembic.ini         # Alembic 配置
 │   ├── .env.example        # 环境变量示例
-│   └── migrations/         # Alembic 数据库迁移
-│       └── versions/       # 迁移版本文件
+│   ├── infra/              # 基础设施层
+│   │   ├── config.py       # 配置加载 (.env)
+│   │   ├── database.py     # MySQL 异步引擎 & 连接池
+│   │   ├── cache.py        # Redis 连接管理 (单机/集群)
+│   │   ├── models.py       # SQLAlchemy ORM 模型
+│   │   └── log.py          # Loguru 日志配置
+│   ├── services/           # 业务逻辑层
+│   │   ├── bridge.py       # 连接桥接逻辑 (session 状态存储于 Redis)
+│   │   ├── token_manager.py  # Token 管理 (MySQL)
+│   │   ├── admin_auth.py   # Admin 认证 (MySQL + Redis session)
+│   │   ├── media_manager.py  # 媒体文件管理（MySQL + 本地文件系统）
+│   │   └── state.py        # 全局单例 (bridge, managers)
+│   ├── routers/            # HTTP/WebSocket 路由层
+│   │   ├── websocket.py    # /bridge/bot & /bridge/chat
+│   │   ├── tokens.py       # /api/token
+│   │   ├── media.py        # /api/media
+│   │   ├── admin.py        # /api/admin
+│   │   ├── admin_auth.py   # /api/admin/auth
+│   │   └── health.py       # /api/health
+│   ├── migrations/         # Alembic 数据库迁移
+│   │   └── versions/
+│   └── tests/              # 测试
+│       ├── conftest.py     # 共享 fixtures (mock session, mock redis)
+│       ├── test_config.py
+│       ├── test_bridge_translate.py
+│       ├── test_token_manager.py
+│       ├── test_media_manager.py
+│       ├── test_admin_auth.py
+│       ├── test_bridge.py
+│       └── e2e/            # 黑盒集成测试（需要真实服务器）
+│           ├── README.md
+│           ├── test_integration.py
+│           ├── test_streaming.py
+│           └── test_e2e_streaming.py
 ├── frontend/               # 前端
 │   ├── index.html          # Chat 聊天界面（支持文本+附件）
 │   ├── admin.html          # Admin 管理面板
@@ -56,10 +81,7 @@ astron-claw/
 ├── scripts/
 │   └── release.sh          # 插件打包脚本
 ├── install.sh              # 插件安装脚本（支持远程一行安装）
-├── uninstall.sh            # 插件卸载脚本
-├── test_streaming.py       # 流式传输测试（Bridge 层）
-├── test_e2e_streaming.py   # 端到端流式测试（真实插件）
-└── test_integration.py     # 集成测试
+└── uninstall.sh            # 插件卸载脚本
 ```
 
 ## 快速开始
@@ -158,7 +180,7 @@ cd server
 # 查看当前版本
 alembic current
 
-# 修改 models.py 后自动生成迁移
+# 修改 infra/models.py 后自动生成迁移
 alembic revision --autogenerate -m "描述变更内容"
 
 # 升级到最新版本
@@ -169,6 +191,19 @@ alembic downgrade -1
 
 # 查看迁移历史
 alembic history
+```
+
+## 单元测试
+
+```bash
+cd server
+pytest -v
+```
+
+E2E 黑盒集成测试（需要先启动服务）：
+
+```bash
+python3 server/tests/e2e/test_integration.py
 ```
 
 ## API 概览
