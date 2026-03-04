@@ -1,0 +1,29 @@
+.git
+.gitignore
+*.md
+!README.md
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+server/logs/
+server/media/
+
+# Node
+node_modules/
+plugin/
+
+# Tests
+test_*.py
+
+# Scripts & misc
+scripts/
+install.sh
+uninstall.sh
+*.tar.gz
+*.db
+.DS_Store
+docs/
+Dockerfile
+.dockerignore
